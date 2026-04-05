@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import select, text, Column, Integer, String
 
@@ -7,3 +8,10 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+
+class UserInfo(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True

@@ -1,3 +1,5 @@
+from os import name
+
 from sqlalchemy.orm import Session
 from repository.database import db_session
 from models.user_models import User
@@ -21,15 +23,13 @@ def create_user(user: User) -> User:
         return user
     return execute_in_session(operation)
 
-def modify_user(user_id: int, name: Optional[str] = None, age: Optional[int] = None) -> Optional[User]:
+def modify_user(user_id: int, user: User) -> Optional[User]:
     
     def operation(session):
         user = session.query(User).filter(User.id == user_id).first()
         if user:
             if name is not None:
                 user.name = name
-            if age is not None:
-                user.age = age
             session.commit()
             session.refresh(user)
         return user
