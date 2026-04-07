@@ -15,8 +15,11 @@ def get_users() -> List[User]:
 def get_user(user_id: int) -> Optional[User]:
     return execute_in_session(lambda session: session.query(User).filter(User.id == user_id).first())
 
-def create_user(user: User) -> User:
+def create_user(username: str) -> User:
+    
     def operation(session):
+        user = User(name=username)
+        # print(f"---------Creating user: {str(user.name)} - {user.id}", flush=True)
         session.add(user)
         session.commit()
         session.refresh(user)

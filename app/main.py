@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import Body, FastAPI, Depends, HTTPException
 from services.base_services import get_users, get_user, create_user, modify_user
-from typing import List
+from typing import Annotated, List
 from models.user_models import User, UserInfo
 import pdb
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI()
 
@@ -24,10 +27,9 @@ def read_user(user_id: int):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@app.post("/users", response_model=str)
-def create_user_endpoint(user: UserInfo):
-    user = User(name=user.name, id=user.id)
-    db_user = create_user(user)
+@app.post("/users")
+async def create_user_endpoint(username: Annotated[str, Body()] ):
+    db_user = create_user(username)
     return f"User {db_user.name} created"
 
 @app.put("/users/{user_id}", response_model=str)
