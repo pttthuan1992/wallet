@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from repository.database import db_session
 from models.user_models import User, UserDB, UserInfo
 from typing import List, Optional, Callable
+from fastapi import HTTPException
 
 def execute_in_session(operation: Callable[[Session], any]):
     with db_session() as session:
@@ -19,37 +20,36 @@ def create_user(username: str) -> User:
     
     def operation(session):
         user = User(name=username)
-        # print(f"---------Creating user: {str(user.name)} - {user.id}", flush=True)
+        # print(f"---------Creating user: {str(user.name)} - {user.id}------------------------", flush=True)
         session.add(user)
         session.commit()
         session.refresh(user)
         return user
     return execute_in_session(operation)
 
-def modify_user(user_id: int, user: UserDB) -> Optional[User]:
-    
+def modify_user(user: UserInfo) -> Optional[User]:
     def operation(session):
-        user_db = session.get(User, user_id)
+        user_db = session.get(User, user.id)
         if not user_db:
             raise HTTPException(status_code=404, detail="User not found")
-        user_data = user.model_dump(exclude_unset=True)
-        # user = session.query(User).filter(User.id == user_id).first()
-        user_db.sqlmodel_update(user_data)    
-        session.add(user_db)
+        for key, value in user.dict().items():
+            setattr(user_db, key, value)
+        # print(f"------------------------user_db {vars(user_db)}")
         session.commit()
         session.refresh(user_db)
         return user_db
     return execute_in_session(operation)
 
-def delete_user(user_id: int) -> Optional[User]:
-    
+def delete_users(user_ids: List[int]) -> None:
+    nonexisted_users = set()
     def operation(session):
-        statement = session.delete(User).where(User.id == user_id)
-        result = session.execute(statement)
+        for uid in user_ids:
+            user_db = session.query(User).filter(User.id == uid).first()
+            if user_db is None:
+                nonexisted_users.add(uid)
+            else:
+                session.delete(user_db)
         session.commit()
-        if result.rowcount == 0:
-            raise HTTPException(
-                status_code=fastapi.status.HTTP_404_NOT_FOUND, 
-                detail="User not found"
-            )
-    return execute_in_session(operation)
+        if nonexisted_users:
+            raise HTTPException(status_code=404, detail=f"Users with ids {nonexisted_users} not found")
+    execute_in_session(operation)

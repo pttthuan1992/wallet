@@ -1,5 +1,5 @@
 from fastapi import Body, FastAPI, Depends, HTTPException, status
-from services.base_services import get_users, get_user, create_user, modify_user
+from services.base_services import get_users, get_user, create_user, modify_user, delete_users
 from typing import Annotated, List
 from models.user_models import User, UserInfo, UserDB
 import pdb
@@ -32,16 +32,16 @@ async def create_user_endpoint(username: Annotated[str, Body()] ):
     db_user = create_user(username)
     return f"User {db_user.name} created"
 
-@app.put("/users/{user_id}", response_model=str)
-def update_user(user_id: int, user: UserInfo):
-    db_user = modify_user(user_id=user_id, user=user)
+@app.put("/users", response_model=str)
+def update_user(user: UserInfo):
+    db_user = modify_user(user=user)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return f"User {db_user.name} updated"
 
-@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int):
-    delete_user(user_id)
+@app.delete("/users", status_code=status.HTTP_204_NO_CONTENT)
+def delete_users_api(user_ids: List[int] = Body(...)):
+    delete_users(user_ids)
     return { "ok": True }
 
 # @app.get("/users")

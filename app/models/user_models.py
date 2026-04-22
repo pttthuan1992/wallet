@@ -5,9 +5,11 @@ from sqlmodel import SQLModel
 Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
-    
-    id = Column(Integer,Identity(always=True), primary_key=True, index=True)
+    # id = Column(Integer,Identity(always=True), primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    class Config:
+        orm_mode = True
 class UserDB(SQLModel):
     id: int
     name: str
