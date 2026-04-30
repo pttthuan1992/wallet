@@ -2,7 +2,8 @@ from http.client import HTTPException
 from os import name
 from sqlalchemy.orm import Session
 from repository.database import db_session
-from models.user_models import User, UserDB, UserInfo
+from models.user_models import User, UserInfo
+from models.wallet_models import Wallet, WalletCreate
 from typing import List, Optional, Callable
 from fastapi import HTTPException
 
@@ -53,3 +54,19 @@ def delete_users(user_ids: List[int]) -> None:
         if nonexisted_users:
             raise HTTPException(status_code=404, detail=f"Users with ids {nonexisted_users} not found")
     execute_in_session(operation)
+
+def get_wallets() -> List[Wallet]:  
+    return execute_in_session(lambda session: session.query(Wallet).all())
+
+def create_wallet(wallet: WalletCreate) -> Wallet:
+    def operation(session):
+        user_db = session.get(User, wallet.user_id)
+        if not user_db:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        db_wallet = Wallet(user_id=wallet.user_id, balance=wallet.balance)
+        session.add(db_wallet)
+        session.commit()
+        session.refresh(db_wallet)
+        return db_wallet
+    return execute_in_session(operation)

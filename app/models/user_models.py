@@ -10,9 +10,6 @@ class User(Base):
     name = Column(String, index=True)
     class Config:
         orm_mode = True
-class UserDB(SQLModel):
-    id: int
-    name: str
 
 class UserInfo(BaseModel):
     id: int
