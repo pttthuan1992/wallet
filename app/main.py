@@ -1,5 +1,5 @@
 from fastapi import Body, FastAPI, Depends, HTTPException, status
-from services.base_services import get_users, get_user, create_user, modify_user, delete_users, create_wallet, get_wallets
+from services.base_services import delete_wallets, get_users, get_user, create_user, modify_user, delete_users, create_wallet, get_wallets
 from typing import Annotated, List
 from models.user_models import User, UserInfo
 from models.wallet_models import WalletCreate, WalletInfo
@@ -40,10 +40,10 @@ def update_user(user: UserInfo):
         raise HTTPException(status_code=404, detail="User not found")
     return f"User {db_user.name} updated"
 
-@app.delete("/users", status_code=status.HTTP_204_NO_CONTENT)
+@app.delete("/users", response_model=object)
 def delete_users_api(user_ids: List[int] = Body(...)):
     delete_users(user_ids)
-    return "ok"
+    return {"ok": True}
 
 @app.get("/wallets", response_model=List[WalletInfo])
 def read_wallets():
@@ -54,3 +54,8 @@ def read_wallets():
 def create_wallet_endpoint(wallet: WalletCreate):
     db_wallet = create_wallet(wallet)
     return db_wallet
+
+@app.delete("/wallets", response_model=object)
+def delete_wallets_api(wallet_ids: List[int] = Body(...)):
+    delete_wallets(wallet_ids)
+    return {"ok": True}

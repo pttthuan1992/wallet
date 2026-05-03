@@ -70,3 +70,17 @@ def create_wallet(wallet: WalletCreate) -> Wallet:
         session.refresh(db_wallet)
         return db_wallet
     return execute_in_session(operation)
+
+def delete_wallets(wallet_ids: List[int]) -> None:
+    nonexisted_wallets = set()
+    def operation(session):
+        for uid in wallet_ids:
+            wallet_db = session.query(Wallet).filter(Wallet.id == uid).first()
+            if wallet_db is None:
+                nonexisted_wallets.add(uid)
+            else:
+                session.delete(wallet_db)
+        session.commit()
+        if nonexisted_wallets:
+            raise HTTPException(status_code=404, detail=f"Wallets with ids {nonexisted_wallets} not found")
+    execute_in_session(operation)
