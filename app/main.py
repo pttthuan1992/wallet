@@ -1,10 +1,13 @@
 from fastapi import Body, FastAPI, Depends, HTTPException, status
+from repository.database import get_db
 from services.base_services import delete_wallets, get_users, get_user, create_user, modify_user, delete_users, create_wallet, get_wallets
 from typing import Annotated, List
 from models.user_models import User, UserInfo
 from models.wallet_models import WalletCreate, WalletInfo
-import pdb
+import asyncio
 import logging
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn.error")
@@ -59,3 +62,13 @@ def create_wallet_endpoint(wallet: WalletCreate):
 def delete_wallets_api(wallet_ids: List[int] = Body(...)):
     delete_wallets(wallet_ids)
     return {"ok": True}
+
+@app.get("/slow")
+async def slow():
+    await asyncio.sleep(3)
+    return {"msg": "done"}
+
+@app.get("/users")
+async def get_users_async(db: AsyncSession = Depends(get_db)):
+    users = await db.execute(select(User))
+    return users.scalars().all()  

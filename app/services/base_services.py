@@ -1,11 +1,12 @@
 from http.client import HTTPException
 from os import name
 from sqlalchemy.orm import Session
-from repository.database import db_session
+from repository.database import db_session, get_db
 from models.user_models import User, UserInfo
 from models.wallet_models import Wallet, WalletCreate
 from typing import List, Optional, Callable
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 def execute_in_session(operation: Callable[[Session], any]):
     with db_session() as session:
@@ -84,3 +85,4 @@ def delete_wallets(wallet_ids: List[int]) -> None:
         if nonexisted_wallets:
             raise HTTPException(status_code=404, detail=f"Wallets with ids {nonexisted_wallets} not found")
     execute_in_session(operation)
+
