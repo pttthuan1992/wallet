@@ -8,7 +8,7 @@ class Wallet(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    balance = Column(Numeric(12, 2), nullable=False, default=0)
+    balance = Column(Numeric(12, 2, asdecimal=False), nullable=False, default=0)
 
     class Config:
         orm_mode = True
@@ -26,3 +26,14 @@ class WalletInfo(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class TransferRequest(BaseModel):
+    from_wallet_id: int
+    to_wallet_id: int
+    amount: float
+
+
+class TransferResult(BaseModel):
+    from_wallet: WalletInfo
+    to_wallet: WalletInfo

@@ -1,88 +1,107 @@
-from http.client import HTTPException
-from os import name
-from sqlalchemy.orm import Session
-from repository.database import db_session, get_db
-from models.user_models import User, UserInfo
-from models.wallet_models import Wallet, WalletCreate
-from typing import List, Optional, Callable
-from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from models.user_models import User, UserInfo
+from models.wallet_models import Wallet, WalletCreate, TransferRequest, TransferResult
+from typing import List, Optional
+from fastapi import HTTPException
 
-def execute_in_session(operation: Callable[[Session], any]):
-    with db_session() as session:
-        return operation(session)
 
-def get_users() -> List[User]:  
-    return execute_in_session(lambda session: session.query(User).all())
+async def get_users(session: AsyncSession) -> List[User]:
+    result = await session.execute(select(User))
+    return result.scalars().all()
 
-def get_user(user_id: int) -> Optional[User]:
-    return execute_in_session(lambda session: session.query(User).filter(User.id == user_id).first())
 
-def create_user(username: str) -> User:
-    
-    def operation(session):
-        user = User(name=username)
-        # print(f"---------Creating user: {str(user.name)} - {user.id}------------------------", flush=True)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        return user
-    return execute_in_session(operation)
+async def get_user(session: AsyncSession, user_id: int) -> Optional[User]:
+    return await session.get(User, user_id)
 
-def modify_user(user: UserInfo) -> Optional[User]:
-    def operation(session):
-        user_db = session.get(User, user.id)
-        if not user_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        for key, value in user.dict().items():
-            setattr(user_db, key, value)
-        # print(f"------------------------user_db {vars(user_db)}")
-        session.commit()
-        session.refresh(user_db)
-        return user_db
-    return execute_in_session(operation)
 
-def delete_users(user_ids: List[int]) -> None:
+async def create_user(session: AsyncSession, username: str) -> User:
+    user = User(name=username)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def modify_user(session: AsyncSession, user: UserInfo) -> User:
+    user_db = await session.get(User, user.id)
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    for key, value in user.dict().items():
+        setattr(user_db, key, value)
+    await session.commit()
+    await session.refresh(user_db)
+    return user_db
+
+
+async def delete_users(session: AsyncSession, user_ids: List[int]) -> None:
     nonexisted_users = set()
-    def operation(session):
-        for uid in user_ids:
-            user_db = session.query(User).filter(User.id == uid).first()
-            if user_db is None:
-                nonexisted_users.add(uid)
-            else:
-                session.delete(user_db)
-        session.commit()
-        if nonexisted_users:
-            raise HTTPException(status_code=404, detail=f"Users with ids {nonexisted_users} not found")
-    execute_in_session(operation)
+    for uid in user_ids:
+        user_db = await session.get(User, uid)
+        if user_db is None:
+            nonexisted_users.add(uid)
+        else:
+            await session.delete(user_db)
+    await session.commit()
+    if nonexisted_users:
+        raise HTTPException(status_code=404, detail=f"Users with ids {nonexisted_users} not found")
 
-def get_wallets() -> List[Wallet]:  
-    return execute_in_session(lambda session: session.query(Wallet).all())
 
-def create_wallet(wallet: WalletCreate) -> Wallet:
-    def operation(session):
-        user_db = session.get(User, wallet.user_id)
-        if not user_db:
-            raise HTTPException(status_code=404, detail="User not found")
+async def get_wallets(session: AsyncSession) -> List[Wallet]:
+    result = await session.execute(select(Wallet))
+    return result.scalars().all()
 
-        db_wallet = Wallet(user_id=wallet.user_id, balance=wallet.balance)
-        session.add(db_wallet)
-        session.commit()
-        session.refresh(db_wallet)
-        return db_wallet
-    return execute_in_session(operation)
 
-def delete_wallets(wallet_ids: List[int]) -> None:
+async def create_wallet(session: AsyncSession, wallet: WalletCreate) -> Wallet:
+    user_db = await session.get(User, wallet.user_id)
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    db_wallet = Wallet(user_id=wallet.user_id, balance=wallet.balance)
+    session.add(db_wallet)
+    await session.commit()
+    await session.refresh(db_wallet)
+    return db_wallet
+
+
+async def delete_wallets(session: AsyncSession, wallet_ids: List[int]) -> None:
     nonexisted_wallets = set()
-    def operation(session):
-        for uid in wallet_ids:
-            wallet_db = session.query(Wallet).filter(Wallet.id == uid).first()
-            if wallet_db is None:
-                nonexisted_wallets.add(uid)
-            else:
-                session.delete(wallet_db)
-        session.commit()
-        if nonexisted_wallets:
-            raise HTTPException(status_code=404, detail=f"Wallets with ids {nonexisted_wallets} not found")
-    execute_in_session(operation)
+    for wid in wallet_ids:
+        wallet_db = await session.get(Wallet, wid)
+        if wallet_db is None:
+            nonexisted_wallets.add(wid)
+        else:
+            await session.delete(wallet_db)
+    await session.commit()
+    if nonexisted_wallets:
+        raise HTTPException(status_code=404, detail=f"Wallets with ids {nonexisted_wallets} not found")
 
+
+async def transfer_funds(session: AsyncSession, transfer: TransferRequest) -> TransferResult:
+    if transfer.amount <= 0:
+        raise HTTPException(status_code=400, detail="Transfer amount must be positive")
+
+    # Lock rows in consistent ID order to avoid deadlocks
+    first_id, second_id = sorted([transfer.from_wallet_id, transfer.to_wallet_id])
+    await session.execute(select(Wallet).where(Wallet.id.in_([first_id, second_id])).with_for_update())
+
+    from_wallet = await session.get(Wallet, transfer.from_wallet_id)
+    if not from_wallet:
+        raise HTTPException(status_code=404, detail=f"Source wallet {transfer.from_wallet_id} not found")
+
+    to_wallet = await session.get(Wallet, transfer.to_wallet_id)
+    if not to_wallet:
+        raise HTTPException(status_code=404, detail=f"Destination wallet {transfer.to_wallet_id} not found")
+
+    if from_wallet.id == to_wallet.id:
+        raise HTTPException(status_code=400, detail="Cannot transfer to the same wallet")
+
+    if float(from_wallet.balance) < transfer.amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+
+    from_wallet.balance = float(from_wallet.balance) - transfer.amount
+    to_wallet.balance = float(to_wallet.balance) + transfer.amount
+
+    await session.commit()
+    await session.refresh(from_wallet)
+    await session.refresh(to_wallet)
+    return TransferResult(from_wallet=from_wallet, to_wallet=to_wallet)
